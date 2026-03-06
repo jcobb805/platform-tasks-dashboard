@@ -346,8 +346,8 @@ function getDueDate(task) {
   switch (task.cadence) {
     case 'Daily': return new Date(t);
     case 'Weekly': {
+      // Show this week's occurrence even if past — stays overdue until completed
       let diff = task.dueWeekday - t.getDay();
-      if (diff < 0) diff += 7;
       const d = new Date(t); d.setDate(t.getDate() + diff); return d;
     }
     case 'Monthly': {
