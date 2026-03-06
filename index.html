@@ -508,14 +508,21 @@ async function fetchStatuses() {
 async function postUpdate(taskId, periodKey, status, updatedBy) {
   if (!isConfigured()) return;
   try {
-    // Use no-cors to avoid redirect/CORS issues with Apps Script
-    // The POST is sent and processed; we don't need the response
-    await fetch(CONFIG.SCRIPT_URL, {
+    const r = await fetch(CONFIG.SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors',
+      redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ taskId: String(taskId), periodKey, status, updatedBy }),
     });
+    // Apps Script redirects POST → GET, returning the doPost result as text
+    const text = await r.text();
+    try {
+      const result = JSON.parse(text);
+      if (result.error) {
+        console.error('Apps Script error:', result.error);
+        showToast('Sync error: ' + result.error, 'error');
+      }
+    } catch { /* response may not be JSON after redirect — that's OK */ }
   } catch (e) {
     console.error('Post failed:', e);
     showToast('Sync failed - change saved locally', 'error');
