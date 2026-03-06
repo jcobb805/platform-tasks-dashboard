@@ -379,7 +379,7 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 function getPeriodKey(task) {
   const t = getToday();
   switch (task.cadence) {
-    case 'Daily': return t.toISOString().split('T')[0];
+    case 'Daily': return 'D' + t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
     case 'Weekly': {
       const d = new Date(t); const day = d.getDay();
       d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));

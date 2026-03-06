@@ -23,7 +23,10 @@ function doGet(e) {
     const headers = data[0];
     const rows = data.slice(1).map(row => {
       const obj = {};
-      headers.forEach((h, i) => obj[h] = row[i]);
+      headers.forEach((h, i) => {
+        // Convert Date objects back to strings (Sheets auto-converts date-like values)
+        obj[h] = row[i] instanceof Date ? row[i].toISOString() : row[i];
+      });
       return obj;
     });
 
@@ -59,7 +62,8 @@ function doPost(e) {
 
     // Look for existing row with same task_id + period_key
     for (let i = 1; i < data.length; i++) {
-      if (String(data[i][0]) === String(taskId) && String(data[i][1]) === String(periodKey)) {
+      const cellKey = data[i][1] instanceof Date ? data[i][1].toISOString() : String(data[i][1]);
+      if (String(data[i][0]) === String(taskId) && cellKey === String(periodKey)) {
         sheet.getRange(i + 1, 3).setValue(status);
         sheet.getRange(i + 1, 4).setValue(updatedBy || '');
         sheet.getRange(i + 1, 5).setValue(now);
@@ -99,6 +103,9 @@ function setup() {
   sheet.getRange('A1:E1').setValues([['task_id', 'period_key', 'status', 'updated_by', 'updated_at']]);
   sheet.getRange('1:1').setFontWeight('bold');
   sheet.setFrozenRows(1);
+
+  // Force period_key column to plain text so Sheets doesn't auto-convert dates
+  sheet.getRange('B:B').setNumberFormat('@');
 
   // Auto-size columns
   sheet.autoResizeColumns(1, 5);
