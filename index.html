@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tasks & Deadlines | Platform Accounting</title>
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════════
+       VARIABLES & RESET
+       ═══════════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg: #0a0a0a; --card: #1a1a1a; --card-hover: #1f1f1f; --border: #2a2a2a;
+      --text-1: #f0f0f0; --text-2: #a0a0a0; --text-3: #707070;
+      --blue: #3b82f6; --blue-light: rgba(59,130,246,.12);
+      --green: #10b981; --green-light: rgba(16,185,129,.12);
+      --purple: #8b5cf6; --purple-light: rgba(139,92,246,.12);
+      --amber: #f59e0b; --amber-light: rgba(245,158,11,.12);
+      --red: #ef4444; --red-light: rgba(239,68,68,.12);
+      --teal: #06b6d4;
+      --header-bg: #111111;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text-1); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════════════════════════ */
+    .hdr { background: var(--header-bg); padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
+    .hdr-left { display: flex; align-items: center; gap: 14px; }
+    .hdr h1 { font-size: 1.1rem; font-weight: 600; color: #fff; }
+    .hdr-right { display: flex; align-items: center; gap: 12px; }
+    .hdr .badge { font-size: 0.78rem; padding: 4px 14px; background: rgba(255,255,255,0.1); border-radius: 16px; color: rgba(255,255,255,0.8); }
+    .user-select { padding: 7px 14px; font-size: 0.82rem; border: 1.5px solid var(--blue); border-radius: 20px; background: var(--blue-light); color: var(--blue); font-family: inherit; font-weight: 600; cursor: pointer; }
+    .user-select:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,.2); }
+    .user-select.needs-setup { border-color: var(--amber); background: var(--amber-light); color: var(--amber); animation: pulse-border 2s ease-in-out infinite; }
+    @keyframes pulse-border { 0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.3); } 50% { box-shadow: 0 0 0 6px rgba(245,158,11,.1); } }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       SYNC STATUS BAR
+       ═══════════════════════════════════════════════════════════════════════ */
+    .sync-bar { background: var(--card); border-bottom: 1px solid var(--border); padding: 6px 24px; display: flex; align-items: center; gap: 10px; font-size: 0.72rem; color: var(--text-3); }
+    .sync-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .sync-dot.online { background: var(--green); box-shadow: 0 0 4px rgba(16,185,129,.5); }
+    .sync-dot.offline { background: var(--red); }
+    .sync-dot.syncing { background: var(--amber); animation: blink 1s infinite; }
+    @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.3; } }
+    .sync-bar a { color: var(--blue); cursor: pointer; text-decoration: none; font-weight: 600; }
+    .sync-bar a:hover { text-decoration: underline; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       SETUP BANNER
+       ═══════════════════════════════════════════════════════════════════════ */
+    .setup-banner { background: var(--amber-light); border: 1px solid rgba(245,158,11,.3); border-radius: var(--radius); padding: 14px 20px; margin-bottom: 20px; font-size: 0.84rem; color: var(--amber); }
+    .setup-banner code { background: rgba(0,0,0,.3); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       LAYOUT
+       ═══════════════════════════════════════════════════════════════════════ */
+    .wrap { max-width: 1440px; margin: 0 auto; padding: 24px; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       KPI CARDS
+       ═══════════════════════════════════════════════════════════════════════ */
+    .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 14px; margin-bottom: 20px; animation: fadeUp .3s ease; }
+    .kpi { background: var(--card); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); border-left: 4px solid var(--blue); transition: transform .15s; }
+    .kpi:hover { transform: translateY(-2px); }
+    .kpi.g { border-left-color: var(--green); } .kpi.r { border-left-color: var(--red); }
+    .kpi.a { border-left-color: var(--amber); } .kpi.p { border-left-color: var(--purple); }
+    .kpi .l { font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); }
+    .kpi .v { font-size: 1.5rem; font-weight: 700; margin-top: 2px; }
+    .kpi .d { font-size: 0.74rem; color: var(--text-3); margin-top: 2px; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       PROGRESS BAR
+       ═══════════════════════════════════════════════════════════════════════ */
+    .progress-wrap { background: var(--card); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px; box-shadow: var(--shadow); }
+    .progress-label { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.82rem; font-weight: 600; }
+    .progress-bar { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--green), var(--teal)); transition: width .5s ease; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       QUICK FILTER PILLS
+       ═══════════════════════════════════════════════════════════════════════ */
+    .pills { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .pill { padding: 6px 16px; font-size: 0.78rem; font-weight: 600; border-radius: 20px; border: 1.5px solid var(--border); background: transparent; color: var(--text-2); cursor: pointer; transition: all .15s; font-family: inherit; }
+    .pill:hover { border-color: var(--text-3); color: var(--text-1); background: rgba(255,255,255,.04); }
+    .pill.active { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
+    .pill .cnt { margin-left: 4px; opacity: 0.7; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       FILTER BAR
+       ═══════════════════════════════════════════════════════════════════════ */
+    .filters { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: center; }
+    .filter-input { padding: 8px 14px; font-size: 0.82rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text-1); font-family: inherit; min-width: 180px; }
+    .filter-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+    .filter-select { padding: 8px 14px; font-size: 0.82rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text-1); font-family: inherit; cursor: pointer; min-width: 140px; }
+    .filter-select:focus { outline: none; border-color: var(--blue); }
+    .btn-reset { padding: 8px 16px; font-size: 0.78rem; font-weight: 600; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text-2); cursor: pointer; font-family: inherit; transition: all .15s; }
+    .btn-reset:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       TABLE
+       ═══════════════════════════════════════════════════════════════════════ */
+    .table-wrap { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; animation: fadeUp .3s ease; }
+    .table-scroll { overflow-x: auto; }
+    table.dt { width: 100%; border-collapse: collapse; min-width: 1050px; }
+    .dt th { text-align: left; font-size: 0.68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--text-2); padding: 12px 14px; border-bottom: 2px solid var(--border); cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0; background: var(--card); z-index: 1; }
+    .dt th:hover { color: var(--blue); }
+    .dt th.asc::after { content: ' \25B2'; font-size: 0.55rem; }
+    .dt th.desc::after { content: ' \25BC'; font-size: 0.55rem; }
+    .dt td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 0.84rem; vertical-align: middle; }
+    .dt tr:hover td { background: rgba(255,255,255,.03); }
+    .dt .n { text-align: right; font-variant-numeric: tabular-nums; }
+    .dt .c { text-align: center; }
+
+    /* Completed row */
+    tr.row-done td { color: var(--text-3); }
+    tr.row-done .task-name { text-decoration: line-through; text-decoration-color: var(--text-3); }
+    tr.row-done .status-btn { opacity: 1; }
+    /* In-progress row */
+    tr.row-wip .task-name { color: var(--blue); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CADENCE BADGES
+       ═══════════════════════════════════════════════════════════════════════ */
+    .cad-badge { font-size: 0.68rem; font-weight: 600; padding: 3px 10px; border-radius: 12px; white-space: nowrap; }
+    .cad-daily { background: var(--red-light); color: var(--red); }
+    .cad-weekly { background: var(--blue-light); color: var(--blue); }
+    .cad-monthly { background: var(--purple-light); color: var(--purple); }
+    .cad-monthend { background: var(--amber-light); color: var(--amber); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       TRAFFIC LIGHT DOTS
+       ═══════════════════════════════════════════════════════════════════════ */
+    .tl { width: 14px; height: 14px; border-radius: 50%; display: inline-block; vertical-align: middle; }
+    .tl-red { background: var(--red); box-shadow: 0 0 8px rgba(239,68,68,0.5); animation: pulse-red 2s ease-in-out infinite; }
+    .tl-amber { background: var(--amber); box-shadow: 0 0 6px rgba(245,158,11,0.35); }
+    .tl-green { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.35); }
+    .tl-done { background: var(--green); box-shadow: none; position: relative; }
+    .tl-done::after { content: '\2713'; position: absolute; top: -1px; left: 2px; font-size: 10px; color: #fff; font-weight: 700; }
+    @keyframes pulse-red { 0%,100% { box-shadow: 0 0 8px rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 16px rgba(239,68,68,0.8); } }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       STATUS TOGGLE BUTTON
+       ═══════════════════════════════════════════════════════════════════════ */
+    .status-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 14px; font-size: 0.74rem; font-weight: 600; border-radius: 16px; border: 1.5px solid var(--border); background: transparent; cursor: pointer; font-family: inherit; transition: all .2s; white-space: nowrap; }
+    .status-btn:hover { transform: scale(1.04); }
+    .status-btn.s-pending { color: var(--text-3); border-color: var(--border); }
+    .status-btn.s-pending:hover { border-color: var(--text-3); }
+    .status-btn.s-wip { color: var(--blue); border-color: var(--blue); background: var(--blue-light); }
+    .status-btn.s-done { color: var(--green); border-color: var(--green); background: var(--green-light); }
+    .updated-info { font-size: 0.65rem; color: var(--text-3); margin-top: 3px; white-space: nowrap; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       ASSIGNEE
+       ═══════════════════════════════════════════════════════════════════════ */
+    .assignee { display: inline-block; font-size: 0.78rem; color: var(--text-2); cursor: pointer; transition: color .15s; }
+    .assignee:hover { color: var(--blue); text-decoration: underline; }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       STATUS TEXT
+       ═══════════════════════════════════════════════════════════════════════ */
+    .st-text { font-size: 0.78rem; font-weight: 500; white-space: nowrap; }
+    .st-overdue { color: var(--red); } .st-today { color: var(--red); }
+    .st-thisweek { color: var(--amber); } .st-nextweek { color: var(--amber); opacity: .8; }
+    .st-future { color: var(--green); } .st-done { color: var(--green); }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       TOAST NOTIFICATIONS
+       ═══════════════════════════════════════════════════════════════════════ */
+    #toasts { position: fixed; bottom: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: 8px; color: #fff; font-size: 0.82rem; font-weight: 500; font-family: inherit; animation: slideIn .3s ease; box-shadow: 0 4px 12px rgba(0,0,0,.4); }
+    .toast-success { background: var(--green); }
+    .toast-error { background: var(--red); }
+    .toast-info { background: var(--blue); }
+    @keyframes slideIn { from { transform: translateX(100%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       FOOTER & RESPONSIVE
+       ═══════════════════════════════════════════════════════════════════════ */
+    .footer { text-align: center; padding: 24px; font-size: 0.72rem; color: var(--text-3); }
+    .empty-row td { text-align: center; color: var(--text-3); padding: 40px 14px; font-style: italic; }
+    @media (max-width: 768px) {
+      .wrap { padding: 14px; }
+      .kpis { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .filters { gap: 8px; }
+      .filter-input, .filter-select { min-width: 120px; flex: 1; }
+    }
+    @media print {
+      .pills, .filters, .status-btn, .sync-bar, #toasts { display: none !important; }
+      body { background: #fff; color: #000; }
+      .hdr { background: #222; }
+      .table-wrap, .kpi, .progress-wrap { background: #fff; border: 1px solid #ddd; box-shadow: none; }
+      .dt td, .dt th { color: #000; border-color: #ddd; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     HEADER
+     ═══════════════════════════════════════════════════════════════════════ -->
+<header class="hdr">
+  <div class="hdr-left">
+    <svg viewBox="0 0 180 65" width="120" height="42" xmlns="http://www.w3.org/2000/svg">
+      <text x="0" y="44" font-family="'Segoe UI',Arial,sans-serif" font-weight="900" font-size="54" fill="#ffffff" letter-spacing="-2">P</text>
+      <path d="M48,6 C48,6 39,20 39,27 C39,33 43,36.5 48,36.5 C53,36.5 57,33 57,27 C57,20 48,6 48,6 Z" fill="#dc2626"/>
+      <text x="55" y="44" font-family="'Segoe UI',Arial,sans-serif" font-weight="900" font-size="54" fill="#ffffff" letter-spacing="-2">E</text>
+      <text x="48" y="60" font-family="'Segoe UI',Arial,sans-serif" font-weight="700" font-size="11.5" fill="rgba(255,255,255,.85)" text-anchor="middle" letter-spacing="2.5">PLATFORM ENERGY</text>
+    </svg>
+    <h1>Tasks & Deadlines by Entity</h1>
+  </div>
+  <div class="hdr-right">
+    <select class="user-select needs-setup" id="user-select">
+      <option value="">-- Select your name --</option>
+    </select>
+    <span class="badge" id="date-badge"></span>
+  </div>
+</header>
+
+<!-- Sync Status Bar -->
+<div class="sync-bar">
+  <span class="sync-dot" id="sync-dot"></span>
+  <span id="sync-text">Initializing...</span>
+  <a onclick="manualRefresh()">Refresh</a>
+</div>
+
+<div class="wrap">
+
+  <!-- Setup Banner (shown when Apps Script URL not configured) -->
+  <div class="setup-banner" id="setup-banner" style="display:none">
+    Google Sheet sync is not configured. Edit <code>CONFIG.SCRIPT_URL</code> in the page source to connect.
+    The dashboard works offline using your browser's local storage until then.
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpis" id="kpis"></div>
+
+  <!-- Progress Bar -->
+  <div class="progress-wrap">
+    <div class="progress-label">
+      <span id="prog-label">Team Progress</span>
+      <span id="prog-pct">0%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+  </div>
+
+  <!-- Quick Filter Pills -->
+  <div class="pills" id="pills"></div>
+
+  <!-- Filter Bar -->
+  <div class="filters">
+    <input type="text" class="filter-input" id="f-search" placeholder="Search tasks...">
+    <select class="filter-select" id="f-entity"><option value="">All Entities</option></select>
+    <select class="filter-select" id="f-cadence"><option value="">All Cadences</option></select>
+    <select class="filter-select" id="f-assignee"><option value="">All Assignees</option></select>
+    <button class="btn-reset" id="btn-reset">Reset Filters</button>
+  </div>
+
+  <!-- Task Table -->
+  <div class="table-wrap">
+    <div class="table-scroll">
+      <table class="dt" id="task-table">
+        <thead>
+          <tr>
+            <th style="width:42px">#</th>
+            <th data-col="name">Task</th>
+            <th data-col="entity" style="width:140px">Entity</th>
+            <th data-col="cadence" style="width:105px">Cadence</th>
+            <th data-col="due" class="n" style="width:100px">Due Date</th>
+            <th data-col="days" class="n" style="width:70px">Days</th>
+            <th data-col="status" class="c" style="width:42px"></th>
+            <th data-col="autoStatus" style="width:120px">Status</th>
+            <th data-col="assignee" style="width:140px">Assigned To</th>
+            <th class="c" style="width:150px">Action</th>
+          </tr>
+        </thead>
+        <tbody id="task-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Platform Accounting &middot; Tasks & Deadlines Dashboard &middot; Shared via Google Sheets</div>
+
+<!-- Toast container -->
+<div id="toasts"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION
+// After setting up the Google Apps Script web app, paste the deployment URL below.
+// ═══════════════════════════════════════════════════════════════════════════
+const CONFIG = {
+  SCRIPT_URL: 'PASTE_YOUR_APPS_SCRIPT_URL_HERE',
+  REFRESH_INTERVAL: 30000, // Auto-refresh every 30 seconds
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TASK DATA
+// ═══════════════════════════════════════════════════════════════════════════
+const TASKS = [
+  { id: 1,  name: 'A/P remittance', cadence: 'Weekly', dueWeekday: 1, entity: 'All', assignees: ['Kristen'] },
+  { id: 2,  name: 'ACH drafts recorded', cadence: 'Weekly', dueWeekday: 5, entity: 'All', assignees: ['Kristen'] },
+  { id: 3,  name: 'AFEs', cadence: 'Weekly', dueWeekday: 1, entity: 'All', assignees: ['Josh'] },
+  { id: 4,  name: 'All revenue checks (EnergyLink or Physical) saved to Dropbox', cadence: 'Weekly', dueWeekday: 5, entity: 'All', assignees: ['Kinzie'] },
+  { id: 5,  name: 'Analysis of Revenue Tracking Trends', cadence: 'Monthly', dueMonthDay: 7, entity: 'All', assignees: ['Kristen','Josh'] },
+  { id: 6,  name: 'Bank account MM sweep transactions', cadence: 'Daily', entity: 'All', assignees: ['Kristen'] },
+  { id: 7,  name: 'Bank reconciliations', cadence: 'Monthly', dueMonthDay: 7, entity: 'All', assignees: ['Kristen'] },
+  { id: 8,  name: 'Check stub entry', cadence: 'Monthly', dueMonthDay: 15, entity: 'All', assignees: ['TBD'] },
+  { id: 9,  name: 'Check stub entry \u2014 other M/R entities', cadence: 'Month-end', entity: 'Mineral & Royalty', assignees: ['Team'] },
+  { id: 10, name: 'Check stub entry \u2014 Platform Energy IV', cadence: 'Monthly', dueMonthDay: 20, entity: 'Mineral & Royalty', assignees: ['Team'] },
+  { id: 11, name: 'Crood/RPS check stub entry', cadence: 'Monthly', dueMonthDay: 10, entity: 'Mineral & Royalty', assignees: ['Lauren'] },
+  { id: 12, name: 'Crood/RPS presentations & distributions', cadence: 'Monthly', dueMonthDay: 15, entity: 'Mineral & Royalty', assignees: ['Lauren'] },
+  { id: 13, name: 'Debt Schedule balances updated as of prior month', cadence: 'Monthly', dueMonthDay: 7, entity: 'All', assignees: ['Kristen'] },
+  { id: 14, name: 'Deposits recorded in WP', cadence: 'Weekly', dueWeekday: 5, entity: 'All', assignees: ['Kinzie'] },
+  { id: 15, name: 'Financial statements + roll-up workbook', cadence: 'Month-end', entity: 'All', assignees: ['Team'] },
+  { id: 16, name: 'Financial statements closed', cadence: 'Monthly', dueMonthDay: 15, entity: 'All', assignees: ['Angelica'] },
+  { id: 17, name: 'Fund weekly JV closings', cadence: 'Weekly', dueWeekday: 4, entity: 'All', assignees: ['Kristen'] },
+  { id: 18, name: 'Incoming Land mail/email sent out to team and saved in Dropbox', cadence: 'Daily', entity: 'All', assignees: ['Lauren'] },
+  { id: 19, name: 'JIBs', cadence: 'Monthly', dueMonthDay: 9, entity: 'All', assignees: ['Kristen'] },
+  { id: 20, name: 'JV bank account capital call reconciliation', cadence: 'Weekly', dueWeekday: 5, entity: 'All', assignees: ['Kristen'] },
+  { id: 21, name: 'JV Bank Account Funding Schedule', cadence: 'Weekly', dueWeekday: 5, entity: 'All', assignees: ['TBD'] },
+  { id: 22, name: 'JV Closing/True-up Schedule', cadence: 'Weekly', dueWeekday: 5, entity: 'All', assignees: ['Josh','Kristen'] },
+  { id: 23, name: 'JV OGLs uploaded to Dropbox for prior weekly closing', cadence: 'Weekly', dueWeekday: 1, entity: 'All', assignees: ['Kristen'] },
+  { id: 24, name: 'Land tracker item updates', cadence: 'Daily', entity: 'All', assignees: ['Team'] },
+  { id: 25, name: 'Loan schedule by DSU', cadence: 'Weekly', dueWeekday: 1, entity: 'All', assignees: ['Josh'] },
+  { id: 26, name: 'M&R revenue remote deposits', cadence: 'Weekly', dueWeekday: 4, entity: 'All', assignees: ['Michele'] },
+  { id: 27, name: 'OGL Unit Tracker (Ostrich and PEF)', cadence: 'Weekly', dueWeekday: 4, entity: 'Ostrich / PEF / Non-Op', assignees: ['Josh','Marcus'] },
+  { id: 28, name: 'PE IV monthly cash flow statement/distribution', cadence: 'Monthly', dueMonthDay: 20, entity: 'Mineral & Royalty', assignees: ['Kristen'] },
+  { id: 29, name: 'Prosperity loan payment', cadence: 'Monthly', dueMonthDay: 17, entity: 'All', assignees: ['Kristen','Josh'] },
+];
+
+const TEAM_MEMBERS = ['Angelica','Josh','Kinzie','Kristen','Lauren','Marcus','Michele'];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATE & STATUS CALCULATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+function getToday() { const d = new Date(); d.setHours(0,0,0,0); return d; }
+
+function getDueDate(task) {
+  const t = getToday();
+  switch (task.cadence) {
+    case 'Daily': return new Date(t);
+    case 'Weekly': {
+      let diff = task.dueWeekday - t.getDay();
+      if (diff < 0) diff += 7;
+      const d = new Date(t); d.setDate(t.getDate() + diff); return d;
+    }
+    case 'Monthly': {
+      const last = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+      return new Date(t.getFullYear(), t.getMonth(), Math.min(task.dueMonthDay, last));
+    }
+    case 'Month-end':
+      return new Date(t.getFullYear(), t.getMonth() + 1, 0);
+  }
+}
+
+function getDaysUntil(due) { return Math.round((due - getToday()) / 86400000); }
+function getAutoStatus(days) {
+  if (days < 0) return 'Overdue';
+  if (days === 0) return 'Due today';
+  if (days <= 7) return 'Due this week';
+  if (days <= 14) return 'Due next week';
+  return 'Future';
+}
+function getTrafficClass(days) { return days <= 0 ? 'tl-red' : days <= 7 ? 'tl-amber' : 'tl-green'; }
+function getStatusTextClass(days) {
+  if (days < 0) return 'st-overdue'; if (days === 0) return 'st-today';
+  if (days <= 7) return 'st-thisweek'; if (days <= 14) return 'st-nextweek'; return 'st-future';
+}
+function fmtDate(d) { return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`; }
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function getPeriodKey(task) {
+  const t = getToday();
+  switch (task.cadence) {
+    case 'Daily': return t.toISOString().split('T')[0];
+    case 'Weekly': {
+      const d = new Date(t); const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      return 'W' + d.toISOString().split('T')[0];
+    }
+    case 'Monthly': case 'Month-end':
+      return t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0');
+  }
+}
+
+function timeAgo(isoStr) {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE MANAGEMENT — Google Sheet + localStorage hybrid
+// ═══════════════════════════════════════════════════════════════════════════
+const LOCAL_KEY = 'pe-tasks-v1';
+let sheetData = {}; // task_id:period_key -> { status, updated_by, updated_at }
+let isOnline = false;
+let lastSync = null;
+let refreshTimer = null;
+
+function isConfigured() {
+  return CONFIG.SCRIPT_URL && !CONFIG.SCRIPT_URL.startsWith('PASTE');
+}
+
+// localStorage cache
+function loadLocalState() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || {}; } catch { return {}; }
+}
+function saveLocalState(state) { localStorage.setItem(LOCAL_KEY, JSON.stringify(state)); }
+
+function getTaskState(task) {
+  const key = task.id + ':' + getPeriodKey(task);
+  if (sheetData[key]) return sheetData[key];
+  const local = loadLocalState();
+  if (local[key]) return local[key];
+  return { status: 'pending', updated_by: '', updated_at: '' };
+}
+
+function setTaskState(task, status) {
+  const key = task.id + ':' + getPeriodKey(task);
+  const user = getCurrentUser();
+  const now = new Date().toISOString();
+  const entry = { status, updated_by: user, updated_at: now };
+
+  // Update in-memory
+  sheetData[key] = entry;
+
+  // Update localStorage cache
+  const local = loadLocalState();
+  local[key] = entry;
+  saveLocalState(local);
+
+  // Sync to Google Sheet
+  if (isConfigured()) {
+    postUpdate(task.id, getPeriodKey(task), status, user);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GOOGLE SHEET SYNC ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchStatuses() {
+  if (!isConfigured()) return false;
+  setSyncStatus('syncing');
+  try {
+    const r = await fetch(CONFIG.SCRIPT_URL + '?action=getAll');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const rows = await r.json();
+    if (Array.isArray(rows)) {
+      // Build lookup
+      const newData = {};
+      rows.forEach(row => {
+        const key = row.task_id + ':' + row.period_key;
+        newData[key] = { status: row.status, updated_by: row.updated_by, updated_at: row.updated_at };
+      });
+      sheetData = newData;
+      saveLocalState(newData); // Cache locally
+      isOnline = true;
+      lastSync = new Date();
+      setSyncStatus('online');
+      return true;
+    }
+    throw new Error('Unexpected response');
+  } catch (e) {
+    console.error('Fetch failed:', e);
+    isOnline = false;
+    setSyncStatus('offline');
+    // Load from localStorage cache
+    const local = loadLocalState();
+    sheetData = local;
+    return false;
+  }
+}
+
+async function postUpdate(taskId, periodKey, status, updatedBy) {
+  if (!isConfigured()) return;
+  try {
+    await fetch(CONFIG.SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ taskId: String(taskId), periodKey, status, updatedBy }),
+    });
+  } catch (e) {
+    console.error('Post failed:', e);
+    showToast('Sync failed - change saved locally', 'error');
+  }
+}
+
+function startAutoRefresh() {
+  if (refreshTimer) clearInterval(refreshTimer);
+  if (!isConfigured()) return;
+  refreshTimer = setInterval(async () => {
+    if (document.hidden) return; // Don't refresh when tab is hidden
+    await fetchStatuses();
+    render();
+  }, CONFIG.REFRESH_INTERVAL);
+}
+
+async function manualRefresh() {
+  await fetchStatuses();
+  render();
+  if (isOnline) showToast('Data refreshed', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SYNC STATUS UI
+// ═══════════════════════════════════════════════════════════════════════════
+function setSyncStatus(state) {
+  const dot = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  dot.className = 'sync-dot ' + state;
+  switch (state) {
+    case 'online':
+      text.textContent = 'Connected \u00B7 Last synced ' + (lastSync ? timeAgo(lastSync.toISOString()) : 'just now');
+      break;
+    case 'offline':
+      text.textContent = isConfigured() ? 'Offline \u00B7 Using cached data' : 'Local mode \u00B7 Google Sheet not connected';
+      break;
+    case 'syncing':
+      text.textContent = 'Syncing...';
+      break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEAM MEMBER SELECTOR
+// ═══════════════════════════════════════════════════════════════════════════
+const USER_KEY = 'pe-tasks-user';
+function getCurrentUser() { return localStorage.getItem(USER_KEY) || ''; }
+function setCurrentUser(name) { localStorage.setItem(USER_KEY, name); }
+
+function setupUserSelect() {
+  const sel = document.getElementById('user-select');
+  TEAM_MEMBERS.forEach(name => {
+    const o = document.createElement('option');
+    o.value = name; o.textContent = name;
+    sel.appendChild(o);
+  });
+  const saved = getCurrentUser();
+  if (saved) {
+    sel.value = saved;
+    sel.classList.remove('needs-setup');
+  }
+  sel.addEventListener('change', () => {
+    setCurrentUser(sel.value);
+    sel.classList.toggle('needs-setup', !sel.value);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOAST NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+function showToast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENRICH TASKS
+// ═══════════════════════════════════════════════════════════════════════════
+function enrichTasks() {
+  return TASKS.map(t => {
+    const due = getDueDate(t);
+    const days = getDaysUntil(due);
+    const state = getTaskState(t);
+    return { ...t, due, days, autoStatus: getAutoStatus(days), completion: state.status, updatedBy: state.updated_by, updatedAt: state.updated_at };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FILTER & SORT STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let activePill = 'all';
+let sortCol = 'days', sortAsc = true;
+
+function getFilteredTasks() {
+  let tasks = enrichTasks();
+  const search = document.getElementById('f-search').value.toLowerCase().trim();
+  const entity = document.getElementById('f-entity').value;
+  const cadence = document.getElementById('f-cadence').value;
+  const assignee = document.getElementById('f-assignee').value;
+
+  if (search) tasks = tasks.filter(t => t.name.toLowerCase().includes(search) || t.assignees.some(a => a.toLowerCase().includes(search)));
+  if (entity) tasks = tasks.filter(t => t.entity === entity);
+  if (cadence) tasks = tasks.filter(t => t.cadence === cadence);
+  if (assignee) tasks = tasks.filter(t => t.assignees.includes(assignee));
+
+  switch (activePill) {
+    case 'today': tasks = tasks.filter(t => t.completion !== 'done' && t.days === 0); break;
+    case 'thisweek': tasks = tasks.filter(t => t.completion !== 'done' && t.days >= 0 && t.days <= 7); break;
+    case 'overdue': tasks = tasks.filter(t => t.completion !== 'done' && t.days < 0); break;
+    case 'completed': tasks = tasks.filter(t => t.completion === 'done'); break;
+    case 'pending': tasks = tasks.filter(t => t.completion !== 'done'); break;
+  }
+
+  tasks.sort((a, b) => {
+    // Completed always at bottom
+    if (a.completion === 'done' && b.completion !== 'done') return 1;
+    if (a.completion !== 'done' && b.completion === 'done') return -1;
+    let va, vb;
+    switch (sortCol) {
+      case 'name': return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      case 'entity': return sortAsc ? a.entity.localeCompare(b.entity) : b.entity.localeCompare(a.entity);
+      case 'cadence': return sortAsc ? a.cadence.localeCompare(b.cadence) : b.cadence.localeCompare(a.cadence);
+      case 'assignee': va = a.assignees.join(','); vb = b.assignees.join(','); return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      default: va = a.days; vb = b.days; return sortAsc ? va - vb : vb - va;
+    }
+  });
+  return tasks;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDERING
+// ═══════════════════════════════════════════════════════════════════════════
+function render() {
+  const allTasks = enrichTasks();
+  const filtered = getFilteredTasks();
+  renderKPIs(allTasks);
+  renderProgress(allTasks);
+  renderPills(allTasks);
+  renderTable(filtered);
+  renderSortIndicators();
+}
+
+function renderKPIs(tasks) {
+  const total = tasks.length;
+  const done = tasks.filter(t => t.completion === 'done').length;
+  const dueToday = tasks.filter(t => t.completion !== 'done' && t.days === 0).length;
+  const dueWeek = tasks.filter(t => t.completion !== 'done' && t.days >= 1 && t.days <= 7).length;
+  const overdue = tasks.filter(t => t.completion !== 'done' && t.days < 0).length;
+  const wip = tasks.filter(t => t.completion === 'wip').length;
+  const td = getToday();
+
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="l">Total Tasks</div><div class="v">${total}</div><div class="d">Recurring deadlines</div></div>
+    <div class="kpi ${overdue?'r':'g'}"><div class="l">Overdue</div><div class="v" style="color:${overdue?'var(--red)':'var(--green)'}">${overdue}</div><div class="d">${overdue?'Need attention':'All clear'}</div></div>
+    <div class="kpi r"><div class="l">Due Today</div><div class="v" style="color:var(--red)">${dueToday}</div><div class="d">${WEEKDAYS[td.getDay()]}, ${MONTHS[td.getMonth()]} ${td.getDate()}</div></div>
+    <div class="kpi a"><div class="l">Due This Week</div><div class="v" style="color:var(--amber)">${dueWeek}</div><div class="d">Next 7 days</div></div>
+    <div class="kpi g"><div class="l">Completed</div><div class="v" style="color:var(--green)">${done}</div><div class="d">${total-done} remaining</div></div>
+    <div class="kpi p"><div class="l">In Progress</div><div class="v" style="color:var(--purple)">${wip}</div><div class="d">Being worked on</div></div>`;
+}
+
+function renderProgress(tasks) {
+  const total = tasks.length, done = tasks.filter(t => t.completion === 'done').length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-pct').textContent = `${done}/${total} (${pct}%)`;
+}
+
+function renderPills(tasks) {
+  const pills = [
+    { key: 'all', label: 'All', count: tasks.length },
+    { key: 'pending', label: 'Outstanding', count: tasks.filter(t => t.completion !== 'done').length },
+    { key: 'today', label: 'Due Today', count: tasks.filter(t => t.completion !== 'done' && t.days === 0).length },
+    { key: 'thisweek', label: 'This Week', count: tasks.filter(t => t.completion !== 'done' && t.days >= 0 && t.days <= 7).length },
+    { key: 'overdue', label: 'Overdue', count: tasks.filter(t => t.completion !== 'done' && t.days < 0).length },
+    { key: 'completed', label: 'Completed', count: tasks.filter(t => t.completion === 'done').length },
+  ];
+  document.getElementById('pills').innerHTML = pills.map(p =>
+    `<button class="pill${activePill===p.key?' active':''}" onclick="setPill('${p.key}')">${p.label}<span class="cnt">${p.count}</span></button>`
+  ).join('');
+}
+
+function renderTable(tasks) {
+  const tbody = document.getElementById('task-tbody');
+  if (!tasks.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No tasks match the current filters</td></tr>'; return; }
+
+  tbody.innerHTML = tasks.map((t, i) => {
+    const isDone = t.completion === 'done', isWip = t.completion === 'wip';
+    const rowCls = isDone ? 'row-done' : isWip ? 'row-wip' : '';
+    const tlCls = isDone ? 'tl-done' : getTrafficClass(t.days);
+    const stCls = isDone ? 'st-done' : getStatusTextClass(t.days);
+    const stText = isDone ? 'Completed' : t.autoStatus;
+    const cadCls = t.cadence === 'Daily' ? 'cad-daily' : t.cadence === 'Weekly' ? 'cad-weekly' : t.cadence === 'Month-end' ? 'cad-monthend' : 'cad-monthly';
+    const btnCls = isDone ? 's-done' : isWip ? 's-wip' : 's-pending';
+    const btnIcon = isDone ? '&#10003;' : isWip ? '&#9684;' : '&#9675;';
+    const btnText = isDone ? 'Complete' : isWip ? 'In Progress' : 'Pending';
+    const daysHtml = isDone ? '&mdash;' : (t.days < 0 ? `<span style="color:var(--red);font-weight:700">${t.days}d</span>` : t.days === 0 ? '<span style="color:var(--red);font-weight:700">Today</span>' : `${t.days}d`);
+    const updInfo = t.updatedBy ? `<div class="updated-info">${t.updatedBy} &middot; ${timeAgo(t.updatedAt)}</div>` : '';
+
+    return `<tr class="${rowCls}">
+      <td style="color:var(--text-3);font-weight:600">${i+1}</td>
+      <td class="task-name">${t.name}</td>
+      <td style="color:var(--text-2);font-size:0.78rem">${t.entity}</td>
+      <td><span class="cad-badge ${cadCls}">${t.cadence}</span></td>
+      <td class="n" style="white-space:nowrap">${fmtDate(t.due)}</td>
+      <td class="n">${daysHtml}</td>
+      <td class="c"><span class="tl ${tlCls}"></span></td>
+      <td><span class="st-text ${stCls}">${stText}</span></td>
+      <td>${t.assignees.map(a => `<span class="assignee" onclick="filterAssignee('${a}')">${a}</span>`).join(', ')}</td>
+      <td class="c"><button class="status-btn ${btnCls}" onclick="cycleStatus(${t.id})" title="Click to change status">${btnIcon} ${btnText}</button>${updInfo}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSortIndicators() {
+  document.querySelectorAll('.dt th[data-col]').forEach(th => {
+    th.classList.remove('asc','desc');
+    if (th.dataset.col === sortCol) th.classList.add(sortAsc ? 'asc' : 'desc');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENT HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+function cycleStatus(taskId) {
+  if (!getCurrentUser()) {
+    showToast('Please select your name first', 'error');
+    document.getElementById('user-select').focus();
+    return;
+  }
+  const task = TASKS.find(t => t.id === taskId);
+  if (!task) return;
+  const current = getTaskState(task).status;
+  const next = current === 'pending' ? 'wip' : current === 'wip' ? 'done' : 'pending';
+  setTaskState(task, next);
+  render();
+}
+
+function setPill(key) { activePill = key; render(); }
+
+function filterAssignee(name) { document.getElementById('f-assignee').value = name; render(); }
+
+function setupFilters() {
+  const entities = [...new Set(TASKS.map(t => t.entity))].sort();
+  const cadences = [...new Set(TASKS.map(t => t.cadence))].sort();
+  const assignees = [...new Set(TASKS.flatMap(t => t.assignees))].sort();
+
+  const eSel = document.getElementById('f-entity');
+  entities.forEach(e => { const o = document.createElement('option'); o.value = e; o.textContent = e; eSel.appendChild(o); });
+  const cSel = document.getElementById('f-cadence');
+  cadences.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; cSel.appendChild(o); });
+  const aSel = document.getElementById('f-assignee');
+  assignees.forEach(a => { const o = document.createElement('option'); o.value = a; o.textContent = a; aSel.appendChild(o); });
+
+  document.getElementById('f-search').addEventListener('input', render);
+  document.getElementById('f-entity').addEventListener('change', render);
+  document.getElementById('f-cadence').addEventListener('change', render);
+  document.getElementById('f-assignee').addEventListener('change', render);
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    document.getElementById('f-search').value = '';
+    document.getElementById('f-entity').value = '';
+    document.getElementById('f-cadence').value = '';
+    document.getElementById('f-assignee').value = '';
+    activePill = 'all';
+    render();
+  });
+
+  document.querySelectorAll('.dt th[data-col]').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (sortCol === col) sortAsc = !sortAsc;
+      else { sortCol = col; sortAsc = true; }
+      render();
+    });
+  });
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); document.getElementById('f-search').focus(); }
+  if (e.key === 'Escape') { document.getElementById('f-search').value = ''; document.getElementById('f-search').blur(); render(); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+(async function init() {
+  const td = getToday();
+  document.getElementById('date-badge').textContent = `${MONTHS[td.getMonth()]} ${td.getDate()}, ${td.getFullYear()}`;
+
+  setupUserSelect();
+  setupFilters();
+
+  // Show setup banner if not configured
+  if (!isConfigured()) {
+    document.getElementById('setup-banner').style.display = 'block';
+    setSyncStatus('offline');
+    // Load from localStorage
+    sheetData = loadLocalState();
+  } else {
+    // Fetch from Google Sheet
+    await fetchStatuses();
+    startAutoRefresh();
+  }
+
+  render();
+})();
+</script>
+
+</body>
+</html>
