@@ -409,6 +409,8 @@ let sheetData = {}; // task_id:period_key -> { status, updated_by, updated_at }
 let isOnline = false;
 let lastSync = null;
 let refreshTimer = null;
+let lastWriteTime = 0; // Timestamp of last local write (protects against stale refresh)
+const WRITE_PROTECT_MS = 8000; // Don't let auto-refresh overwrite for 8s after a local write
 
 function isConfigured() {
   return CONFIG.SCRIPT_URL && !CONFIG.SCRIPT_URL.startsWith('PASTE');
@@ -434,8 +436,9 @@ function setTaskState(task, status) {
   const now = new Date().toISOString();
   const entry = { status, updated_by: user, updated_at: now };
 
-  // Update in-memory
+  // Update in-memory and mark write time
   sheetData[key] = entry;
+  lastWriteTime = Date.now();
 
   // Update localStorage cache
   const local = loadLocalState();
@@ -453,20 +456,39 @@ function setTaskState(task, status) {
 // ═══════════════════════════════════════════════════════════════════════════
 async function fetchStatuses() {
   if (!isConfigured()) return false;
+  // Don't overwrite if user just made a local change (wait for Sheet to catch up)
+  if (Date.now() - lastWriteTime < WRITE_PROTECT_MS) {
+    setSyncStatus('online');
+    return true;
+  }
   setSyncStatus('syncing');
   try {
     const r = await fetch(CONFIG.SCRIPT_URL + '?action=getAll');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const rows = await r.json();
     if (Array.isArray(rows)) {
-      // Build lookup
-      const newData = {};
+      // Merge remote data with local — local wins for recent writes
+      const remoteData = {};
       rows.forEach(row => {
         const key = row.task_id + ':' + row.period_key;
-        newData[key] = { status: row.status, updated_by: row.updated_by, updated_at: row.updated_at };
+        remoteData[key] = { status: row.status, updated_by: row.updated_by, updated_at: row.updated_at };
       });
-      sheetData = newData;
-      saveLocalState(newData); // Cache locally
+      // Merge: start with remote, overlay with any local keys that are newer
+      const local = loadLocalState();
+      const merged = { ...remoteData };
+      Object.keys(local).forEach(key => {
+        if (local[key] && local[key].updated_at && remoteData[key] && remoteData[key].updated_at) {
+          // Keep whichever is newer
+          if (new Date(local[key].updated_at) > new Date(remoteData[key].updated_at)) {
+            merged[key] = local[key];
+          }
+        } else if (local[key] && !remoteData[key]) {
+          // Local has data that Sheet doesn't yet (POST still in flight)
+          merged[key] = local[key];
+        }
+      });
+      sheetData = merged;
+      saveLocalState(merged);
       isOnline = true;
       lastSync = new Date();
       setSyncStatus('online');
@@ -477,7 +499,6 @@ async function fetchStatuses() {
     console.error('Fetch failed:', e);
     isOnline = false;
     setSyncStatus('offline');
-    // Load from localStorage cache
     const local = loadLocalState();
     sheetData = local;
     return false;
@@ -487,8 +508,11 @@ async function fetchStatuses() {
 async function postUpdate(taskId, periodKey, status, updatedBy) {
   if (!isConfigured()) return;
   try {
+    // Use no-cors to avoid redirect/CORS issues with Apps Script
+    // The POST is sent and processed; we don't need the response
     await fetch(CONFIG.SCRIPT_URL, {
       method: 'POST',
+      mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ taskId: String(taskId), periodKey, status, updatedBy }),
     });
