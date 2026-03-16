@@ -386,7 +386,7 @@ function getPeriodKey(task) {
       return 'W' + d.toISOString().split('T')[0];
     }
     case 'Monthly': case 'Month-end':
-      return t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0');
+      return 'M' + t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0');
   }
 }
 
